@@ -1,3 +1,6 @@
 fastapi
-uvicorn
+uvicorn[standard]
 gunicorn
+requests
+pycryptodome
+pydantic
