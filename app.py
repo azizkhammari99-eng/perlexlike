@@ -1,7 +1,6 @@
 import time
 import requests
 from fastapi import FastAPI
-from pydantic import BaseModel
 from byte import Encrypt_ID
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -91,12 +90,9 @@ def send_like(jwt: str, payload: bytes):
     }
     return requests.post(LIKE_URL, headers=headers, data=payload, timeout=30)
 
-class LikeRequest(BaseModel):
-    target_uid: str
-
-@app.post("/like")
-def like_endpoint(body: LikeRequest):
-    target_uid = body.target_uid
+@app.get("/like")
+def like_endpoint(uid: str):
+    target_uid = uid
     payload = build_payload(target_uid)
 
     try:
@@ -110,12 +106,12 @@ def like_endpoint(body: LikeRequest):
     results = []
     success = 0
     failed = 0
-    for uid, pw in ACCOUNTS:
+    for acc_uid, pw in ACCOUNTS:
         try:
-            jwt = get_token(uid, pw)
+            jwt = get_token(acc_uid, pw)
             resp = send_like(jwt, payload)
             results.append({
-                "uid": uid,
+                "uid": acc_uid,
                 "status_code": resp.status_code,
                 "body": resp.text[:200],
             })
@@ -125,7 +121,7 @@ def like_endpoint(body: LikeRequest):
                 failed += 1
         except Exception as e:
             failed += 1
-            results.append({"uid": uid, "status": "error", "error": str(e)})
+            results.append({"uid": acc_uid, "status": "error", "error": str(e)})
         time.sleep(0.3)
 
     try:
@@ -150,4 +146,4 @@ def like_endpoint(body: LikeRequest):
             "failed": failed,
         },
         "accounts": results,
-    }
+}
