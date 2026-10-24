@@ -1,6 +1,6 @@
 import time
 import requests
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from byte import Encrypt_ID
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -49,6 +49,7 @@ ACCOUNTS = [
 
 _token_cache: dict = {}
 
+
 def get_token(uid: str, pw: str) -> str:
     now = time.time()
     cached = _token_cache.get(uid)
@@ -60,19 +61,23 @@ def get_token(uid: str, pw: str) -> str:
     _token_cache[uid] = {"jwt": jwt, "expires_at": now + TOKEN_TTL}
     return jwt
 
+
 def build_payload(target_uid: str) -> bytes:
     enc = Encrypt_ID(str(target_uid))
     plain = bytes.fromhex(f"08{enc}")
     cipher = AES.new(KEY, AES.MODE_CBC, IV)
     return cipher.encrypt(pad(plain, AES.block_size))
 
+
 def fetch_info(uid: str) -> dict:
     r = requests.get(INFO_API.format(uid=uid), timeout=30)
     r.raise_for_status()
     return r.json()
 
+
 def extract_likes(info: dict) -> int:
     return int(info.get("basicInfo", {}).get("liked", 0))
+
 
 def send_like(jwt: str, payload: bytes):
     headers = {
@@ -90,8 +95,9 @@ def send_like(jwt: str, payload: bytes):
     }
     return requests.post(LIKE_URL, headers=headers, data=payload, timeout=30)
 
+
 @app.get("/like")
-def like_endpoint(uid: str):
+def like_endpoint(uid: str = Query(..., description="Target UID to like")):
     target_uid = uid
     payload = build_payload(target_uid)
 
@@ -106,12 +112,12 @@ def like_endpoint(uid: str):
     results = []
     success = 0
     failed = 0
-    for acc_uid, pw in ACCOUNTS:
+    for account_uid, pw in ACCOUNTS:
         try:
-            jwt = get_token(acc_uid, pw)
+            jwt = get_token(account_uid, pw)
             resp = send_like(jwt, payload)
             results.append({
-                "uid": acc_uid,
+                "uid": account_uid,
                 "status_code": resp.status_code,
                 "body": resp.text[:200],
             })
@@ -121,7 +127,7 @@ def like_endpoint(uid: str):
                 failed += 1
         except Exception as e:
             failed += 1
-            results.append({"uid": acc_uid, "status": "error", "error": str(e)})
+            results.append({"uid": account_uid, "status": "error", "error": str(e)})
         time.sleep(0.3)
 
     try:
@@ -146,4 +152,4 @@ def like_endpoint(uid: str):
             "failed": failed,
         },
         "accounts": results,
-}
+    }
